@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { VisualizerMode } from '../types';
 
@@ -56,17 +57,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         
         {/* Mode Buttons */}
         <div className="flex items-center gap-1 sm:gap-2 flex-nowrap">
-          {/* Classic Group */}
+          {/* Primary Group */}
           <div className="flex bg-white/5 rounded-lg p-0.5 gap-0.5 shrink-0">
             <button onClick={() => onSetMode(VisualizerMode.WATER_CIRCLE)} className={getButtonClass(VisualizerMode.WATER_CIRCLE, 'bg-teal-600')}>水墨圆</button>
+            <button onClick={() => onSetMode(VisualizerMode.NEURAL)} className={getButtonClass(VisualizerMode.NEURAL, 'bg-blue-600')}>网络</button>
             <button onClick={() => onSetMode(VisualizerMode.CIRCULAR)} className={getButtonClass(VisualizerMode.CIRCULAR, 'bg-indigo-600')}>圆形</button>
             <button onClick={() => onSetMode(VisualizerMode.BARS)} className={getButtonClass(VisualizerMode.BARS, 'bg-pink-600')}>柱状</button>
             <button onClick={() => onSetMode(VisualizerMode.WAVE)} className={getButtonClass(VisualizerMode.WAVE, 'bg-cyan-600')}>波形</button>
           </div>
 
-          {/* Artistic Group */}
+          {/* Secondary Group */}
           <div className="flex bg-white/5 rounded-lg p-0.5 gap-0.5 shrink-0">
-            <button onClick={() => onSetMode(VisualizerMode.NEURAL)} className={getButtonClass(VisualizerMode.NEURAL, 'bg-blue-600')}>网络</button>
             <button onClick={() => onSetMode(VisualizerMode.WATERCOLOR)} className={getButtonClass(VisualizerMode.WATERCOLOR, 'bg-purple-500')}>水彩</button>
             <button onClick={() => onSetMode(VisualizerMode.NEBULA)} className={getButtonClass(VisualizerMode.NEBULA, 'bg-fuchsia-600')}>星云</button>
           </div>

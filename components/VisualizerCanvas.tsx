@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { VisualizerMode } from '../types';
 
@@ -81,6 +82,11 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
     } else if (mode === VisualizerMode.NEBULA && nebulaStarsRef.current.length === 0) {
       initNebulaStars();
     } else if (mode === VisualizerMode.WATER_CIRCLE && paperShardsRef.current.length === 0) {
+      initPaperShards();
+    }
+
+    // Initialize shards for Neural mode if not present (reuses the geometry engine)
+    if (mode === VisualizerMode.NEURAL && paperShardsRef.current.length === 0) {
       initPaperShards();
     }
   }, [mode]);
@@ -208,7 +214,9 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
     if (mode === VisualizerMode.NEURAL) initNeuralNodes();
     if (mode === VisualizerMode.WATERCOLOR) initWatercolorBlobs();
     if (mode === VisualizerMode.NEBULA) initNebulaStars();
-    if (mode === VisualizerMode.WATER_CIRCLE && paperShardsRef.current.length === 0) initPaperShards();
+    if ((mode === VisualizerMode.WATER_CIRCLE || mode === VisualizerMode.NEURAL) && paperShardsRef.current.length === 0) {
+      initPaperShards();
+    }
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -224,7 +232,7 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
         // Re-init texture on resize
-        if (modeRef.current === VisualizerMode.WATER_CIRCLE) {
+        if (modeRef.current === VisualizerMode.WATER_CIRCLE || modeRef.current === VisualizerMode.NEURAL) {
              initPaperShards(); 
         }
       }
@@ -268,11 +276,47 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
       // --- RENDER LOGIC ---
 
       if (currentMode === VisualizerMode.NEURAL) {
-        // STYLE: Neural Network
+        // STYLE: Neural Network (Dark Mode) with Animated Dark Shards
         const baseHue = (220 + globalHueShift + hueWobble) % 360;
-        const bgLightness = 100 - (bassLevel * 5);
-        ctx.fillStyle = `hsl(${baseHue}, 20%, ${bgLightness}%)`; 
+        
+        // 1. Dark Base Background
+        // Use a very deep, almost black blue
+        ctx.fillStyle = `hsl(${baseHue}, 30%, 4%)`; 
         ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+        // 2. Draw Moving Dark Shards (Background Animation)
+        const shards = paperShardsRef.current;
+        shards.forEach(shard => {
+            // Move
+            shard.x += shard.vx;
+            shard.y += shard.vy;
+            
+            // Wrap
+            if (shard.x < -150) shard.x = WIDTH + 150;
+            if (shard.x > WIDTH + 150) shard.x = -150;
+            if (shard.y < -150) shard.y = HEIGHT + 150;
+            if (shard.y > HEIGHT + 150) shard.y = -150;
+
+            // Draw Triangle
+            ctx.beginPath();
+            ctx.moveTo(shard.x, shard.y);
+            ctx.lineTo(shard.x + shard.p1.dx, shard.y + shard.p1.dy);
+            ctx.lineTo(shard.x + shard.p2.dx, shard.y + shard.p2.dy);
+            
+            // Dark Mode Shard Gradients
+            const grad = ctx.createLinearGradient(shard.x, shard.y, shard.x + 50, shard.y + 50);
+            if (shard.isLight) {
+                 // Slightly lighter "highlight" shards (subtle deep blue/grey)
+                 grad.addColorStop(0, `hsla(${baseHue}, 40%, 15%, 0.15)`);
+                 grad.addColorStop(1, `hsla(${baseHue}, 40%, 15%, 0)`);
+            } else {
+                 // Darker "shadow" shards
+                 grad.addColorStop(0, `hsla(${baseHue}, 40%, 0%, 0.4)`);
+                 grad.addColorStop(1, `hsla(${baseHue}, 40%, 0%, 0)`);
+            }
+            ctx.fillStyle = grad;
+            ctx.fill();
+        });
 
         const nodes = neuralNodesRef.current;
         const connectionDistance = 120 + (bassLevel * 350); 
@@ -295,7 +339,8 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
           // Node size
           const r = node.radius + (bassLevel * 6) + (midLevel * 3);
           
-          ctx.fillStyle = `hsl(${baseHue}, 80%, 50%)`;
+          // Lighter, glowing nodes for contrast on dark bg
+          ctx.fillStyle = `hsl(${baseHue}, 90%, 75%)`;
           ctx.beginPath();
           ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
           ctx.fill();
@@ -308,9 +353,10 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
             const dist = Math.sqrt(dx*dx + dy*dy);
 
             if (dist < connectionDistance) {
-              const opacity = (1 - (dist / connectionDistance)) * (0.2 + bassLevel * 0.8);
-              ctx.strokeStyle = `hsla(${baseHue}, 70%, 50%, ${opacity})`; 
-              ctx.lineWidth = 1 + (bassLevel * 3); 
+              const opacity = (1 - (dist / connectionDistance)) * (0.3 + bassLevel * 0.8);
+              // Lighter lines
+              ctx.strokeStyle = `hsla(${baseHue}, 80%, 75%, ${opacity})`; 
+              ctx.lineWidth = (0.5 + (bassLevel * 1.5)) * 0.5; // Reduced by 50%
               ctx.beginPath();
               ctx.moveTo(node.x, node.y);
               ctx.lineTo(other.x, other.y);
@@ -407,7 +453,6 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
         // 3. Draw Static Noise Overlay (Cheap)
         if (noiseCanvasRef.current) {
             ctx.globalAlpha = 0.5;
-            // Draw slightly larger to cover rounding errors if needed, but 1:1 is fine
             ctx.drawImage(noiseCanvasRef.current, 0, 0);
             ctx.globalAlpha = 1.0;
         }
@@ -444,8 +489,13 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
         const radiusBase = Math.min(WIDTH, HEIGHT) / 4.5;
         
         const bars = 120; 
-        const step = Math.floor(bufferLength / bars);
-        const maxExtend = Math.min(WIDTH, HEIGHT) / 2.5;
+        
+        // Changed: Use a wider spectrum range (82%) to include more high frequencies
+        const usefulFreqRange = Math.floor(bufferLength * 0.82);
+        const step = usefulFreqRange / bars; 
+
+        // Max extension: 1/5 of height
+        const maxExtend = HEIGHT * (1 / 5);
 
         ctx.save();
         ctx.translate(centerX, centerY);
@@ -480,8 +530,11 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
 
         // Draw radial ink splashes
         for (let i = 0; i < bars; i++) {
-          const val = dataArray[i * step] / 255;
-          const smoothedVal = val * val; 
+          const index = Math.floor(i * step);
+          const rawVal = dataArray[index] / 255;
+          
+          // Changed: REMOVED minimum bar height (Math.max(0, ...)) to allow for true silence/gaps
+          const smoothedVal = Math.max(0, rawVal * rawVal); 
           
           const angle = (i / bars) * Math.PI * 2;
           const length = smoothedVal * maxExtend * (1 + bassLevel);
@@ -491,25 +544,32 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
           ctx.save();
           ctx.rotate(angle);
           
-          const strokeGrad = ctx.createLinearGradient(0, startRadius, 0, startRadius + length);
-          strokeGrad.addColorStop(0, `hsla(${barHue}, 80%, 40%, 0.6)`);
-          strokeGrad.addColorStop(1, `hsla(${barHue}, 80%, 90%, 0)`);
+          // --- Outward Bar ---
+          if (length > 0) {
+            const strokeGrad = ctx.createLinearGradient(0, startRadius, 0, startRadius + length);
+            strokeGrad.addColorStop(0, `hsla(${barHue}, 80%, 40%, 0.6)`);
+            strokeGrad.addColorStop(1, `hsla(${barHue}, 80%, 90%, 0)`);
+            
+            ctx.fillStyle = strokeGrad;
+            ctx.beginPath();
+            ctx.rect(-barWidth / 2, startRadius, barWidth, length);
+            ctx.fill();
+          }
           
-          ctx.fillStyle = strokeGrad;
-          
-          ctx.beginPath();
-          // Draw Outward rect
-          ctx.rect(-barWidth / 2, startRadius, barWidth, length);
-          
-          // Draw Inward rect (Mirrored effect)
+          // --- Inward Bar (Mirrored effect with fade) ---
           const maxInwardLen = Math.max(0, startRadius - safeInnerRadius);
           const inwardLen = Math.min(length, maxInwardLen);
           
           if (inwardLen > 0) {
+            const inwardGrad = ctx.createLinearGradient(0, startRadius, 0, startRadius - inwardLen);
+            inwardGrad.addColorStop(0, `hsla(${barHue}, 80%, 40%, 0.6)`);
+            inwardGrad.addColorStop(1, `hsla(${barHue}, 80%, 90%, 0)`);
+            ctx.fillStyle = inwardGrad;
+            
+            ctx.beginPath();
             ctx.rect(-barWidth / 2, startRadius, barWidth, -inwardLen);
+            ctx.fill();
           }
-          
-          ctx.fill();
           
           ctx.restore();
         }
@@ -667,13 +727,9 @@ const VisualizerCanvas: React.FC<VisualizerCanvasProps> = ({ analyser, mode, onP
 
       // --- Watermark (Visible in PiP) ---
       // We draw this at the very end so it's on top of everything in the stream
-      // Position: Bottom Right, slightly offset.
-      // Note: In the main window, the ControlPanel covers the bottom ~60px, so this text 
-      // is hidden in the main window (which is good, because we render a DOM text there instead).
-      // In PiP window (no ControlPanel), this text is visible.
       ctx.save();
+      // Changed: Neural is now a Dark Mode, so we remove it from the isLightMode check
       const isLightMode = [
-        VisualizerMode.NEURAL, 
         VisualizerMode.WATERCOLOR, 
         VisualizerMode.WATER_CIRCLE
       ].includes(currentMode);
