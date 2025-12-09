@@ -1,0 +1,8 @@
+{
+  "name": "NeonFlow Audio Visualizer",
+  "description": "A dynamic system audio visualizer that captures output sound and renders colorful, responsive animations. Features Picture-in-Picture mode for always-on-top capability.",
+  "requestFramePermissions": [
+    "microphone",
+    "display-capture"
+  ]
+}
